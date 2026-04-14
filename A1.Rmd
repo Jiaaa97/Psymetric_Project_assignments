@@ -1,0 +1,410 @@
+---
+title: "Assignment 1"
+author: "Jia Song s3952932"
+date: "2024-09-26"
+output: pdf_document
+---
+
+```{r,warning =F}
+library("foreign")
+library("ggplot2")
+dat <- read.spss("TOTAAL.SAV", to.data.frame = TRUE)
+set.seed(123)
+```
+
+```{r}
+Impulsivity87 <- c(
+## Likert scale response: 1 (helemaal niet van toepassing / not at all applicable)
+## through 7 (volledig van toepassing / completely applicable)
+"S255", ## If I have to make a decision in a confused situation, I prefer to use quite some time
+"S264", ## My reactions to unexpected situations are rather careful
+"S269", ## I feel comfortable in situations that need quick action
+"S274", ## I usually make decisions only after contemplating all arguments for or against
+"S279", ## I rather work fast with a higher chance of errors than slow but faultless
+"S292" ## If I want to do something important, I usually contemplate all possible consequences
+## because I absolutely don't want to blunder.
+)
+General.psychological.health87 <- c(
+## 1: more / better than usual,
+## 2: the same as usual,
+## 3: less / less well than usual,
+## 4: much less than usual.
+## Or reversed if the item is counter indicative:
+## 1: not at all
+## 2: not more than usual
+## 3: a bit more than usual
+## 4: much more than usual
+"S327", ## Can you concentrate on the things you're busy with lately?
+"S328", ## Have you lost sleep over worries lately?
+"S329", ## Do you have the feeling that your activities are useful and meaningful?
+"S330", ## Do you feel able to make decisions lately?
+"S331", ## Do you have the feeling that you are constantly under pressure lately?
+"S332", ## Do you have the feeling that you can't manage your problems lately?
+"S333", ## Do you have pleasure in your daily activities lately?
+"S335", ## Did you feel unhappy and dejected lately?
+"S336", ## Did you lose self-confidence lately?
+"S337", ## Did you consider yourself a worthless person lately?
+"S338" ## On the whole, did you feel reasonably happy lately?
+)
+Gender <- c("M4") ## Identifies as 0 (woman) or 1 (man)
+Study.delay87 <- c("M232") ## Years (0 through ...)
+Age87 <- c("M37") ## Years (17 through 27
+```
+
+
+```{r}
+dat[ , Impulsivity87]
+impul_data <- sapply(dat[ , Impulsivity87],as.numeric)
+head(impul_data)
+
+general_data <- sapply(dat[ , General.psychological.health87], as.numeric)
+
+head(general_data)
+
+```
+#Part 1
+```{r}
+impul_data <- na.omit(impul_data)
+general_data <- na.omit(general_data)
+
+cor_matrix <- cor(impul_data)
+cor_matrix
+```
+##Question 1 Give descriptive statistics for item and test scores
+```{r}
+impul_scores <- rowSums(impul_data, na.rm = TRUE)
+general_scores <- rowSums(general_data, na.rm = TRUE)
+
+summary(impul_scores)
+summary(general_scores)
+
+#check the stadard deviation
+sd_imp <- sd(impul_scores)
+sd_gene <- sd(general_scores)
+
+sd_imp
+sd_gene
+
+hist(impul_scores, main="Histogram for the Impulsivity Scores", xlab="Impulsivity Scores", col="lightblue", breaks=50)
+hist(general_scores, main="Histogram for General Psychological Health Scores", xlab="General Health Scores", col="lightpink", breaks=50)
+```
+##Question 2
+```{r,warning=FALSE}
+library("boot")
+library("psych")
+cronbach_boot <- function(data, indx) {
+  samples <- data[indx, ]
+  outcome <- psych::alpha(samples, check.keys = TRUE)$total$raw_alpha
+  return(outcome)
+}
+
+results_boot_imp <- boot(impul_data, cronbach_boot, R = 1000)
+results_boot_general <- boot(general_data, cronbach_boot, R = 1000)
+
+original_imp_alpha <- alpha(impul_data, check.keys = TRUE)$total$raw_alpha
+original_general_alpha <- alpha(general_data, check.keys = TRUE)$total$raw_alpha
+
+ci_impul <- boot.ci(results_boot_imp, type = "norm")
+ci_general <- boot.ci(results_boot_general, type = "norm")
+
+original_imp_alpha 
+original_general_alpha 
+```
+```{r}
+ci_impul
+ci_general
+```
+#Question 3 one factor models for both tests
+```{r}
+(imp_one <- factanal(impul_data, factors = 1L))
+(general_one <- factanal(general_data, factors = 1L))
+```
+```{r}
+#compute the omega for impulsivity data
+loadings_impul <- imp_one$loadings[,1]
+uniques_impul <- imp_one$uniquenesses
+sum_lds_impul <- sum(loadings_impul)
+sum_impul_lds_squared <- sum_lds_impul^2
+omege_impul <- (sum_impul_lds_squared) / ( (sum_impul_lds_squared)  + sum(uniques_impul) )
+omege_impul
+```
+
+```{r}
+#compute the omega for general data
+loadings_general <- general_one$loadings[,1]
+uniques_general <- general_one$uniquenesses
+sum_general_lds <- sum(loadings_general)
+sum_general_lds_squared <- sum_general_lds^2
+omega_general <- sum_general_lds_squared / (sum_general_lds_squared + sum(uniques_general))
+omega_general
+```
+```{r}
+library(knitr)
+library(kableExtra)
+#report the information of impul_data's loadings and uniqueness in a table
+T_impu <- data.frame(
+  Item = c("S255","S264","S269", "S274", "S279","S292"),       
+  Factor_Loading = round(loadings_impul, 3),
+  Uniqueness = round(uniques_impul, 3)
+)
+
+T_impu
+
+#report the information of general_data's loadings and uniqueness in a table
+T_gene <- data.frame(
+  Item = c("S327","S328 ","S329","S330","S331", "S332","S333", "S335","S336","S337","S338"),       
+  Factor_Loading = round(loadings_general, 3),
+  Uniqueness = round(uniques_general, 3)
+)
+
+T_gene
+```
+##Question 4
+```{r}
+alpha_results_impul <- psych::alpha(impul_data, check.keys = TRUE)
+alpha_results_impul$alpha.drop
+```
+
+```{r}
+original_al_impu <- alpha_results_impul$total$raw_alpha
+print(original_al_impu)
+```
+```{r}
+alpha_results_general <- psych::alpha(general_data, check.keys = TRUE)
+alpha_results_general $alpha.drop
+
+original_al_general <- alpha_results_general$total$raw_alpha
+print(original_al_general)
+```
+##Question 5
+
+According to the formula for Standard Error of Measurement (SEM): SEM = SD * sqrt(1 - alpha)
+```{r}
+sem_impul <- sd_imp * sqrt(1 - original_al_impu)
+sem_gene <- sd_gene * sqrt(1 - original_al_general)
+
+sem_impul
+sem_gene
+```
+```{r}
+z_values <- 1.64 #because we compute the length of the 90% CI for each of the test scores
+m_impul_score <- mean(impul_scores, na.rm = TRUE)
+m_general_score <- mean(general_scores, na.rm = TRUE)
+
+#for impulsivity data
+lower_impulsivity <- m_impul_score - z_values * sem_impul
+upper_impulsivity <- m_impul_score + z_values * sem_impul
+
+#for general data
+lower_general <- m_general_score - z_values * sem_gene
+upper_general <- m_general_score + z_values * sem_gene
+
+print(paste("90% CI of the impulsivity data:",lower_impulsivity,",",upper_impulsivity))
+print(paste("90% CI of general data:",lower_general,",",upper_general))
+```
+##Question 6
+```{r}
+#we have already the current alpha values for each type of dataset
+nb_impul_items <- ncol(impul_data)
+nb_general_items <- ncol(general_data)
+
+expected_alpha <- 0.8
+
+#compute increasing proportion k
+k_impul <- (expected_alpha * (1 - original_al_impu)) / (original_al_impu * (1 - expected_alpha))
+k_general <- (expected_alpha * (1 - original_al_general)) / (original_al_general * (1 - expected_alpha))
+
+k_impul;k_general
+```
+```{r}
+new_items_impul <- k_impul * nb_impul_items
+new_items_general <- k_general * nb_general_items
+
+print(paste("the number of the new items for the impulsivity dataset is:",round(new_items_impul)))
+round(new_items_general)
+```
+```{r}
+nb_RorA_impul <- new_items_impul - nb_impul_items
+nb_RorA_general <- new_items_general - nb_general_items
+round(nb_RorA_impul)
+round(nb_RorA_general)
+```
+9 items need to be added to the impulsivity test to reach a reliability of 0.80. And we need to remove 1 item to have a reliability of 0.8.
+
+##Question 7
+```{r}
+#we align the 2 datasets, then extract each part to compute the corrlation
+general_scores <- general_scores[1:length(impul_scores)]
+score_data <- data.frame(impul_scores, general_scores)
+score_data <- score_data[complete.cases(score_data), ]
+new_impul_score <- score_data$impul_score
+new_general_score <- score_data$general_score
+cor_test_scores <- cor(new_impul_score, new_general_score)
+alpha_impulsivity <- 0.6187 
+alpha_general <- 0.810
+
+cor_true_scores <- cor_test_scores / sqrt(alpha_impulsivity * alpha_general)
+print(cor_true_scores)
+```
+#Part II
+
+```{r}
+library('knitr')
+num_imp_dat <- sapply(dat[ , Impulsivity87], as.numeric)
+kable(cov(num_imp_dat, use = "pairwise"),digits = 2L)
+num_imp_dat[ , "S279"] <- 8L - num_imp_dat[ , "S279"]
+num_imp_dat[ , "S269"] <- 8L - num_imp_dat[ , "S269"]
+kable(cov(num_imp_dat, use = "pairwise"), digits = 2L)
+```
+```{r}
+hist(num_imp_dat1,breaks = 50)
+```
+
+##Question 1 and 2 and 3
+```{r,warning=F}
+library('ltm')
+```
+```{r}
+num_imp_dat1 <- na.omit(num_imp_dat)
+#the graded resposne model
+impul_grm <- grm(num_imp_dat1)
+impul_grm
+plot(impul_grm, ask=F, items = 1:6, type = "IIC")
+#gpcm
+impul_gpcm <- gpcm(num_imp_dat1)
+impul_gpcm
+plot(impul_gpcm, ask=F, items = 1:6, type = "IIC")
+plot(impul_grm, type = "IIC", items = 0, main = "Test Information Curve (GRM)", xlab = "Trait Level (θ)", ylab = "Information")
+plot(impul_gpcm, type = "IIC", items = 0, main = "Test Information Curve (GPCM)", xlab = "Trait Level (θ)", ylab = "Information")
+```
+
+```{r}
+general_grm <- grm(general_data)
+general_grm
+plot(general_grm, ask=F, items = 1:11, type = "IIC")
+plot(general_grm, ask=F, items = 0, type = "IIC")
+```
+
+```{r}
+general_gpcm <- gpcm(general_data)
+general_gpcm
+plot(general_gpcm, ask=F, items = 1:11, type = "IIC",main = "item information " )
+plot(general_gpcm, ask=F, items = 0, type = "IIC",main = "test information" )
+```
+
+```{r}
+#To compare the models, we look at the AIC and BIC of both models
+impul_sum_grm <- summary(impul_grm)
+
+cat("The AIC of impul_data:", impul_sum_grm$AIC, "\n")
+cat("The BIC of impul_data:", impul_sum_grm$BIC, "\n")
+cat("The Log-Likelihood of impul_data:", impul_sum_grm$logLik, "\n")
+```
+```{r}
+general_sum_grm <- summary(general_grm)
+
+cat("The AIC of general_data:", general_sum_grm$AIC, "\n")
+cat("The BIC of general_data:", general_sum_grm$BIC, "\n")
+cat("The Log-Likelihood of general_data:", general_sum_grm$logLik, "\n")
+```
+```{r}
+impul_sum_pcm <- summary(impul_gpcm)
+
+cat("The AIC of impul_data:", impul_sum_pcm$AIC, "\n")
+cat("The BIC of impul_data:", impul_sum_pcm$BIC, "\n")
+cat("The Log-Likelihood of impul_data:", impul_sum_pcm$logLik, "\n")
+```
+
+```{r}
+general_sum_pcm <- summary(general_gpcm)
+
+cat("The AIC of general_data:", general_sum_pcm$AIC, "\n")
+cat("The BIC of general_data:", general_sum_pcm$BIC, "\n")
+cat("The Log-Likelihood of general_data:", general_sum_pcm$logLik, "\n")
+```
+##Question 4 IRT and  the null i.e null independent responses
+```{r}
+library(poLCA)
+#impul_data part
+llk_imp_grm <- logLik(impul_grm)
+
+indep_imp_data <- impul_data + 1  # Convert 0-based responses to 1-based
+indep_imp_data <- as.data.frame(indep_imp_data)
+imp_item_names <- colnames(indep_imp_data)
+formula_imp<- as.formula(paste("cbind(", paste(imp_item_names, collapse = ", "), ") ~ 1"))
+# Fit the independence model using poLCA
+imp_indep <- poLCA(formula_imp, indep_imp_data, nclass = 1)
+
+#pcm for impul_data
+llk_imp_pcm <- logLik(impul_gpcm)
+```
+```{r}
+-2*(imp_indep$llik - impul_grm$log.Lik)
+-2*(imp_indep$llik - impul_gpcm$log.Lik)
+chi_square_grm <- -2 * (imp_indep$llik - llk_imp_grm)
+chi_square_grm
+#(pchisq(chi_square_grm, 36, lower.tail = FALSE))#36 = 42 - 6
+chi_square_pcm <- -2 * (imp_indep$llik - llk_imp_pcm)
+chi_square_pcm 
+#(pchisq(chi_square, df, lower.tail = FALSE))
+AIC(impul_grm)
+AIC(impul_gpcm)
+BIC(impul_grm)
+BIC(impul_gpcm)
+```
+
+```{r}
+#general_data part
+llk_gl_grm <- logLik(general_grm)
+
+indep_gl_data <- general_data + 1  # Convert 0-based responses to 1-based
+indep_gl_data <- as.data.frame(indep_gl_data)
+gl_item_names <- colnames(indep_gl_data)
+formula_gl<- as.formula(paste("cbind(", paste(gl_item_names, collapse = ", "), ") ~ 1"))
+# Fit the independence model using poLCA
+gl_indep <- poLCA(formula_gl, indep_gl_data, nclass = 1)
+
+#pcm for impul_data
+llk_gl_pcm <- logLik(general_gpcm)
+```
+
+```{r}
+-2*(gl_indep$llik - general_grm$log.Lik)
+-2*(gl_indep$llik - general_gpcm$log.Lik)
+AIC(general_grm)
+AIC(general_gpcm)
+BIC(general_grm)
+BIC(general_gpcm)
+```
+The likelihood ratio test statistic for the GRM is 3277.396 and for the GPCM is 3362.989.
+These values suggest that both the GRM and GPCM fit significantly better than the independent model because the test statistics are quite large. However, the GRM provides a slightly better fit than the GPCM, given the lower likelihood ratio test statistic.
+##Question 6
+```{r}
+library(lordif)
+impul_data1 <- num_imp_dat1
+impul_data1 <- as.data.frame(impul_data1)
+impul_data1$gender <- dat$M4[1:nrow(impul_data1)]
+impul_data1$gender <- as.integer(impul_data1$gender)
+ldf_fit <- lordif(impul_data1[, -which(names(impul_data1) == "gender")], 
+                 group = impul_data1$gender, model = "GRM", alpha = 0.05)
+
+ldf_fit
+```
+Remark:
+
+no items were flagged for Differential Item Functioning (DIF), which means that according to the analysis, there are no statistically significant differences in how the items function across the gender groups in your dataset.
+
+This outcome could happen for several reasons:
+
+No DIF: It’s possible that none of the items in your test exhibit DIF between the gender groups.
+Model Sensitivity: The thresholds for detecting DIF might be set too high, making it harder to flag items.
+Sample Size: If the sample size or variance is insufficient, it might be difficult to detect DIF.
+
+#Question 7
+The one-factor model, a latent variable model, assumes that the test measures a single underlying factor, allowing for more effective capture of measurement error compared to sum scores. This approach can provide a more accurate reflection of underlying traits. In contrast, IRT is more detailed, modeling the probability of specific item responses as a function of the latent trait. It offers precise estimates of individual ability or trait levels and accounts for item difficulty and discrimination, enhancing model fit and the understanding of how each item contributes to trait measurement. While sum scores are simple to compute and easy to interpret, they treat all items as equally important and fail to account for item difficulties or measurement error.
+
+In research involving large groups, where the goal is to model the effects or associations of impulsivity or general psychological health with other variables, IRT is often preferred. This is because it can model item-level properties, offering a more accurate representation of constructs and enabling stronger associations with other variables.
+
+In a clinical setting, where test results might guide decisions for an individual patient, Sum scores are commonly chosen because of easier interpretation. However, if precision and accuracy are critical,a more sophisticated approach like the one-factor model may be a better option.
+
+
